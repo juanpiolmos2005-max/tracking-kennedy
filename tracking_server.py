@@ -3,10 +3,10 @@ SERVIDOR DE TRACKING — Email Marketing Kennedy
 ===============================================
 Este servidor corre en la nube (Railway, Render, VPS, etc.)
 y sigue funcionando aunque la PC esté apagada.
-
+ 
 INSTALACION LOCAL (para probar):
     pip install flask
-
+ 
 DEPLOY EN RAILWAY (gratis):
     1. Creá cuenta en https://railway.app
     2. "New Project" → "Deploy from GitHub repo"
@@ -15,44 +15,44 @@ DEPLOY EN RAILWAY (gratis):
     4. Railway te da una URL pública tipo:
        https://tu-proyecto.up.railway.app
     5. Pegá esa URL en la app → pestaña Tracking → "URL pública"
-
+ 
 DEPLOY EN RENDER (gratis):
     1. Creá cuenta en https://render.com
     2. "New" → "Web Service" → conectá tu repo
     3. Build command: pip install flask
     4. Start command: python tracking_server.py
     5. Render te da URL tipo: https://tu-app.onrender.com
-
+ 
 ARCHIVOS NECESARIOS EN EL REPO:
     - tracking_server.py  (este archivo)
     - requirements.txt    (con "flask" adentro)
-
+ 
 El tracking.json se guarda localmente en el servidor.
 Para sincronizar, la app descarga el JSON via /api/tracking.
 """
-
+ 
 import os
 import json
 import urllib.parse
 from datetime import datetime
 from flask import Flask, request, jsonify, Response
-
+ 
 app = Flask(__name__)
-
+ 
 # En producción los datos se guardan en /tmp (efímero) o en un volumen persistente.
 # Railway y Render soportan volúmenes persistentes. Para uso simple /tmp alcanza.
 DATA_DIR     = os.environ.get("DATA_DIR", "/tmp")
 TRACKING_FILE = os.path.join(DATA_DIR, "tracking.json")
-
+ 
 # Contraseña opcional para proteger el endpoint de lectura
 API_KEY = os.environ.get("API_KEY", "")
-
+ 
 GIF_PIXEL = bytes([
     71,73,70,56,57,97,1,0,1,0,0,255,0,
     44,0,0,0,0,1,0,1,0,0,2,0,59
 ])
-
-
+ 
+ 
 def load_tracking():
     if os.path.exists(TRACKING_FILE):
         try:
@@ -61,13 +61,13 @@ def load_tracking():
         except Exception:
             pass
     return []
-
-
+ 
+ 
 def save_tracking(data):
     with open(TRACKING_FILE, "w") as f:
         json.dump(data, f, indent=2)
-
-
+ 
+ 
 # ── Endpoint principal de tracking ──────────────────────────────────────────
 @app.route("/t")
 def track():
@@ -82,7 +82,7 @@ def track():
     nombre  = request.args.get("n", "")
     carrera = request.args.get("c", "")
     base_id = request.args.get("b", "")
-
+ 
     evento = {
         "ts":      datetime.now().isoformat(),
         "accion":  accion,
@@ -91,11 +91,11 @@ def track():
         "carrera": carrera,
         "base_id": base_id,
     }
-
+ 
     tracking = load_tracking()
     tracking.append(evento)
     save_tracking(tracking)
-
+ 
     if accion == "open":
         # Devolver pixel GIF 1x1 transparente
         return Response(
@@ -112,10 +112,33 @@ def track():
         if dest:
             return app.redirect(dest, code=302)
         return Response("OK", status=200)
+    elif accion == "tel":
+        dest = request.args.get("dest", "tel:08002223340")
+        page = f"""<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Conectando...</title>
+<style>
+  body{{background:#111;color:#fff;font-family:sans-serif;
+       display:flex;align-items:center;justify-content:center;
+       height:100vh;margin:0;text-align:center;}}
+  a{{color:#D10135;font-size:1.3em;font-weight:bold;text-decoration:none;}}
+  p{{color:#aaa;font-size:0.9em;margin-top:12px;}}
+</style>
+</head><body>
+<div>
+  <div style="font-size:3em;margin-bottom:16px;">📞</div>
+  <a href="{dest}">Llamar al 0800-222-3340</a>
+  <p>Si no inicia automáticamente, tocá el número de arriba.</p>
+</div>
+<script>window.location.href="{dest}";</script>
+</body></html>"""
+        return Response(page, mimetype="text/html; charset=utf-8")
     else:
         return Response("OK", status=200)
-
-
+ 
+ 
 # ── API para que la app descargue el tracking ────────────────────────────────
 @app.route("/api/tracking")
 def api_tracking():
@@ -127,11 +150,11 @@ def api_tracking():
         key = request.args.get("key", "")
         if key != API_KEY:
             return jsonify({"error": "Unauthorized"}), 401
-
+ 
     tracking = load_tracking()
     return jsonify(tracking)
-
-
+ 
+ 
 @app.route("/api/clear", methods=["POST"])
 def api_clear():
     """Limpiar el tracking desde la app."""
@@ -141,8 +164,8 @@ def api_clear():
             return jsonify({"error": "Unauthorized"}), 401
     save_tracking([])
     return jsonify({"ok": True})
-
-
+ 
+ 
 @app.route("/api/clear_tel", methods=["POST"])
 def api_clear_tel():
     """Eliminar solo los eventos de tipo 'tel' (llamadas 0800)."""
@@ -155,8 +178,8 @@ def api_clear_tel():
     save_tracking(sin_tel)
     eliminados = len(tracking) - len(sin_tel)
     return jsonify({"ok": True, "eliminados": eliminados})
-
-
+ 
+ 
 @app.route("/api/stats")
 def api_stats():
     """Resumen rápido de estadísticas."""
@@ -173,15 +196,15 @@ def api_stats():
         "clics_wa":         clics_wa,
         "clics_form":       clics_form,
     })
-
-
+ 
+ 
 # ── Health check ─────────────────────────────────────────────────────────────
 @app.route("/")
 @app.route("/health")
 def health():
     return jsonify({"status": "ok", "ts": datetime.now().isoformat()})
-
-
+ 
+ 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     print(f"Servidor de tracking iniciando en puerto {port}...")
