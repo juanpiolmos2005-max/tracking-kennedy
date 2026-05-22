@@ -39,9 +39,9 @@ from flask import Flask, request, jsonify, Response
  
 app = Flask(__name__)
  
-# En producción los datos se guardan en /tmp (efímero) o en un volumen persistente.
-# Railway y Render soportan volúmenes persistentes. Para uso simple /tmp alcanza.
-DATA_DIR     = os.environ.get("DATA_DIR", "/tmp")
+# /data es el volumen persistente de Render (no se borra con reinicios)
+# Si no existe ese directorio (local o Railway), cae a /tmp
+DATA_DIR     = os.environ.get("DATA_DIR", "/data" if os.path.isdir("/data") else "/tmp")
 TRACKING_FILE = os.path.join(DATA_DIR, "tracking.json")
  
 # Contraseña opcional para proteger el endpoint de lectura
